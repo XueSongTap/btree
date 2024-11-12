@@ -122,29 +122,133 @@ private:
     }
 
     bool remove_internal(std::shared_ptr<Node>& node, const T& key) {
-        if (!node) {
-            return false;
-        }
+        int idx = find_key(node, key);
 
-        int i = 0;
-        while (i < node->keys.size() && key > node->keys[i]) {
-            i++;
+        if (idx < node->keys.size() && node->keys[idx] == key) {
+            // The key is in this node
+            if (node->leaf)
+                remove_from_leaf(node, idx);
+            else
+                remove_from_non_leaf(node, idx);
         }
-
-        if (i < node->keys.size() && key == node->keys[i]) {
+        else {
+            // The key is not in this node
             if (node->leaf) {
-                node->keys.erase(node->keys.begin() + i);
-                return true;
+                // The key is not present
+                return false;
             }
-        }
 
-        if (node->leaf) {
-            return false;
-        }
+            bool flag = ((idx == node->keys.size()) ? true : false);
 
-        return remove_internal(node->children[i], key);
+            // If the child where the key should exist has fewer than t keys, fill it
+            if (node->children[idx]->keys.size() < t)
+                fill(node, idx);
+
+            // After filling, the child might have been merged, so we need to decide where to recurse
+            if (flag && idx > node->keys.size())
+                remove_internal(node->children[idx - 1], key);
+            else
+                remove_internal(node->children[idx], key);
+        }
+        return true;
+    }
+    int find_key(std::shared_ptr<Node>& node, const T& key) {
+        int idx = 0;
+        while (idx < node->keys.size() && node->keys[idx] < key)
+            ++idx;
+        return idx;
     }
 
+    void remove_from_leaf(std::shared_ptr<Node>& node, int idx) {
+        node->keys.erase(node->keys.begin() + idx);
+    }
+    void remove_from_non_leaf(std::shared_ptr<Node>& node, int idx) {
+        T key = node->keys[idx];
+
+        // If the child before the key has at least t keys
+        if (node->children[idx]->keys.size() >= t) {
+            T pred = get_predecessor(node->children[idx]);
+            node->keys[idx] = pred;
+            remove_internal(node->children[idx], pred);
+        }
+        // If the child after the key has at least t keys
+        else if (node->children[idx + 1]->keys.size() >= t) {
+            T succ = get_successor(node->children[idx + 1]);
+            node->keys[idx] = succ;
+            remove_internal(node->children[idx + 1], succ);
+        }
+        // If both children have less than t keys
+        else {
+            merge(node, idx);
+            remove_internal(node->children[idx], key);
+        }
+    }
+    T get_predecessor(std::shared_ptr<Node> node) {
+        while (!node->leaf)
+            node = node->children.back();
+        return node->keys.back();
+    }
+
+    T get_successor(std::shared_ptr<Node> node) {
+        while (!node->leaf)
+            node = node->children.front();
+        return node->keys.front();
+    }
+    void fill(std::shared_ptr<Node>& node, int idx) {
+        if (idx != 0 && node->children[idx - 1]->keys.size() >= t)
+            borrow_from_prev(node, idx);
+        else if (idx != node->keys.size() && node->children[idx + 1]->keys.size() >= t)
+            borrow_from_next(node, idx);
+        else {
+            if (idx != node->keys.size())
+                merge(node, idx);
+            else
+                merge(node, idx - 1);
+        }
+    }
+    void borrow_from_prev(std::shared_ptr<Node>& node, int idx) {
+        auto child = node->children[idx];
+        auto sibling = node->children[idx - 1];
+
+        child->keys.insert(child->keys.begin(), node->keys[idx - 1]);
+
+        if (!child->leaf)
+            child->children.insert(child->children.begin(), sibling->children.back());
+
+        node->keys[idx - 1] = sibling->keys.back();
+
+        sibling->keys.pop_back();
+        if (!sibling->leaf)
+            sibling->children.pop_back();
+    }
+    void borrow_from_next(std::shared_ptr<Node>& node, int idx) {
+        auto child = node->children[idx];
+        auto sibling = node->children[idx + 1];
+
+        child->keys.push_back(node->keys[idx]);
+
+        if (!child->leaf)
+            child->children.push_back(sibling->children.front());
+
+        node->keys[idx] = sibling->keys.front();
+
+        sibling->keys.erase(sibling->keys.begin());
+        if (!sibling->leaf)
+            sibling->children.erase(sibling->children.begin());
+    }
+    void merge(std::shared_ptr<Node>& node, int idx) {
+        auto child = node->children[idx];
+        auto sibling = node->children[idx + 1];
+
+        child->keys.push_back(node->keys[idx]);
+        child->keys.insert(child->keys.end(), sibling->keys.begin(), sibling->keys.end());
+
+        if (!child->leaf)
+            child->children.insert(child->children.end(), sibling->children.begin(), sibling->children.end());
+
+        node->keys.erase(node->keys.begin() + idx);
+        node->children.erase(node->children.begin() + idx + 1);
+    }
 public:
     BTree(int min_degree) : t(min_degree) {
         if (min_degree < 2) {
@@ -174,7 +278,17 @@ public:
         return search_internal(root, key);
     }
     
-    bool remove(const T& key) {
-        return remove_internal(root, key);
+    void remove(const T& key) {
+        if (!root)
+            return;
+
+        remove_internal(root, key);
+
+        if (root->keys.empty()) {
+            if (root->leaf)
+                root.reset();
+            else
+                root = root->children[0];
+        }
     }
 };

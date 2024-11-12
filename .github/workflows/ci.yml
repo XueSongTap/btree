@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up C++ environment
+        uses: llvm/llvm-project/.github/workflows/setup-llvm@main
+        with:
+          llvm-version: 13
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake
+
+      - name: Configure Project
+        run: |
+          mkdir -p build
+          cd build
+          cmake ..
+        working-directory: .
+
+      - name: Build Project
+        run: |
+          cd build
+          make -j$(nproc)
+        working-directory: .
+
+      - name: Run Tests
+        run: |
+          cd build
+          ctest --output-on-failure
+        working-directory: .
