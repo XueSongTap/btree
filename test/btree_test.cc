@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "../include/btree.h"
-
+#include <algorithm>
+#include <random>
 class BTreeTest : public ::testing::Test {
 protected:
     BTree<int> btree{3}; // 度数为3的B树
@@ -13,6 +14,68 @@ protected:
         // 在每个测试用例后执行
     }
 };
+
+
+TEST_F(BTreeTest, EmptyTreeTest) {
+    // Test searching in an empty tree
+    auto result = btree.search(10);
+    EXPECT_FALSE(result.has_value());
+
+    // Test deleting from an empty tree
+    EXPECT_FALSE(btree.remove(10));
+}
+
+TEST_F(BTreeTest, SequentialInsertionTest) {
+    // Insert sequential keys and verify
+    for (int i = 1; i <= 20; ++i) {
+        btree.insert(i);
+    }
+    for (int i = 1; i <= 20; ++i) {
+        auto result = btree.search(i);
+        EXPECT_TRUE(result.has_value());
+        EXPECT_EQ(result.value(), i);
+    }
+}
+
+TEST_F(BTreeTest, RandomInsertionDeletionTest) {
+    std::vector<int> keys(100);
+    std::iota(keys.begin(), keys.end(), 1);
+    std::random_device rd;
+    std::mt19937 g(rd());
+
+    // Randomly shuffle and insert keys
+    std::shuffle(keys.begin(), keys.end(), g);
+    for (int key : keys) {
+        btree.insert(key);
+    }
+
+    // Verify all keys are present
+    for (int i = 1; i <= 100; ++i) {
+        auto result = btree.search(i);
+        EXPECT_TRUE(result.has_value());
+    }
+
+    // Randomly shuffle and delete keys
+    std::shuffle(keys.begin(), keys.end(), g);
+    for (int key : keys) {
+        EXPECT_TRUE(btree.remove(key));
+    }
+
+    // Verify all keys are deleted
+    for (int i = 1; i <= 100; ++i) {
+        auto result = btree.search(i);
+        EXPECT_FALSE(result.has_value());
+    }
+}
+
+
+TEST_F(BTreeTest, DeletionFromLeafTest) {
+    btree.insert(10);
+    btree.insert(20);
+    btree.insert(5);
+    EXPECT_TRUE(btree.remove(5));
+    EXPECT_FALSE(btree.search(5).has_value());
+}
 
 TEST_F(BTreeTest, InsertionTest) {
     btree.insert(10);

@@ -3,6 +3,7 @@
 #include <memory>
 #include <optional>
 #include <algorithm>
+#include <stdexcept> // Added this line
 
 template <typename T>
 class BTree {
