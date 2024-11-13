@@ -55,8 +55,13 @@ static void BM_BTreeDeletion(benchmark::State& state) {
 
     for (auto _ : state) {
         if (it == keys.end()) {
-            state.SetIterationTime(0);
-            break;
+            // Re-initialize B-Tree and iterator
+            btree = BTree<int>(50);
+            for (int key : keys) {
+                btree.insert(key);
+            }
+            std::shuffle(keys.begin(), keys.end(), std::mt19937{std::random_device{}()});
+            it = keys.begin();
         }
         // Benchmark deletion time
         btree.remove(*it);
