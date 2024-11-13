@@ -9,24 +9,33 @@ template <typename T>
 class BTree {
 private:
     struct Node {
-        std::vector<T> keys;
-        std::vector<std::shared_ptr<Node>> children;
-        bool leaf;
+        std::vector<T> keys;              // 存储键值
+        std::vector<std::shared_ptr<Node>> children; // 存储子节点指针
+        bool leaf;                        // 是否为叶子节点
         
         Node(bool leaf = true) : leaf(leaf) {}
 
+        // 检查节点是否已满(2t-1个键)
         bool is_full(int t) const {
             return keys.size() == 2 * t - 1;
         }
 
+        // 检查节点是否处于最小键值数(t-1个键)
         bool is_minimum(int t) const {
             return keys.size() == t - 1;
         }
     };
     
-    std::shared_ptr<Node> root;
-    int t;  // minimum degree
+    std::shared_ptr<Node> root;  // 根节点
+    int t;                       // 最小度数(minimum degree)
 
+    // 分裂子节点的关键操作
+    /*
+    分裂前:  [A B C D E]  (假设t=3，节点已满)
+    分裂后:  [C]
+           /     \
+        [A B]   [D E]
+    */
     void split_child(std::shared_ptr<Node>& parent, int index) {
         if (!parent) {
             throw std::runtime_error("Null parent in split_child");
@@ -67,7 +76,11 @@ private:
         parent->keys.insert(parent->keys.begin() + index, child->keys[t - 1]);
         parent->children.insert(parent->children.begin() + index + 1, new_node);
     }
-
+    // 向非满节点插入键值
+    /*
+    示例: 插入40到节点 [10,20,30,50]
+    结果: [10,20,30,40,50]
+    */
     void insert_non_full(std::shared_ptr<Node>& node, const T& key) {
         if (!node) {
             throw std::runtime_error("Null node in insert_non_full");
@@ -100,6 +113,12 @@ private:
             insert_non_full(node->children[i], key);
         }
     }
+    // 在节点中搜索键值
+    /*
+    示例搜索: 在 [10,20,30] 中搜索25
+    过程: 10<25, 20<25, 30>25
+    结果: 在20和30之间的子树中继续搜索
+    */
     std::optional<T> search_internal(const std::shared_ptr<Node>& node, const T& key) const {
         if (!node) {
             return std::nullopt;
@@ -120,7 +139,13 @@ private:
 
         return search_internal(node->children[i], key);
     }
-
+    // 从B树中删除键值的内部实现
+    /*
+    删除情况:
+    1. 从叶子节点删除
+    2. 从内部节点删除
+    3. 需要合并节点的情况
+    */
     bool remove_internal(std::shared_ptr<Node>& node, const T& key) {
         int idx = find_key(node, key);
 
@@ -261,7 +286,13 @@ public:
     int get_min_degree() const { return t; }
     int get_max_keys() const { return 2 * t - 1; }
     int get_min_keys() const { return t - 1; }
-
+    // 插入操作
+    /*
+    示例插入过程:
+    1. 检查根节点是否已满
+    2. 如果已满，分裂根节点
+    3. 向下递归插入新键
+    */
     void insert(const T& key) {
         if (root->keys.size() == 2 * t - 1) {
             auto new_root = std::make_shared<Node>(false);
